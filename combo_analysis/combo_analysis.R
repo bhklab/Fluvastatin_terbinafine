@@ -662,3 +662,65 @@ for (sample in samples_test) {
 }
 
 dev.off()
+
+
+
+##############################################
+##############################################
+
+# Ensure all have the same set of cell lines
+common_cells <- intersect(rownames(final_TBF_AAC_df), intersect(rownames(subtypes_final), names(Fluva)))
+final_TBF_AAC_df <- final_TBF_AAC_df[common_cells, , drop=FALSE]
+subtypes_subset <- subtypes_final[common_cells, ]
+FluvaMono_sub <- Fluva[common_cells]
+
+# Create top annotations
+# Here we annotate SCMOD2 subtype and Fluva mono AAC on the columns.
+# Actually, since rows = cell lines and we want annotations by cell line, these will be column or row annotations?
+# Typically, we annotate the samples (rows) using a row annotation or a top annotation if considered as columns.
+# For clarity, let's assume these are row annotations since each row is a cell line.
+
+col_ha <- HeatmapAnnotation(
+  SCMOD2 = subtypes_subset[,"SCMOD2"],
+  #  FLUVA = FluvaMono_sub,
+  col = list(
+    SCMOD2 = c("Basal"="#4daf4a","HER2"="#377eb8","LumB"="#984ea3","LumA"="#e78ac3")
+    #   FLUVA = colorRamp2(c(0,1), (rev(c("white","blue"))))
+  ),
+  annotation_legend_param = list(
+    SCMOD2 = list(title = "SCMOD2")
+    #  FLUVA = list(title = "FLUVA Mono AAC", at = c(0,1), labels = c("Insensitive", "Sensitive"))
+  )
+)
+
+# Define color scale for the heatmap
+# Adjust the range as needed based on the range of AAC values in final_TBF_AAC_df
+# Typically, AAC ranges between 0 and 1, so we can map:
+col_fun <- colorRamp2(c(0, 1), c("blue", "white"))
+
+final_TBF_AAC_df = final_TBF_AAC_df[,rev(colnames(final_TBF_AAC_df))]
+
+colnames(final_TBF_AAC_df) <- c("TBF + FLUVA (25uM)","TBF + FLUVA (6.25uM)","TBF + FLUVA (1.56uM)","TBF + FLUVA (0.39uM)","TBF Mono")
+final_TBF_AAC_df <- cbind.data.frame(final_TBF_AAC_df,"FLUVA Mono"=Fluva[rownames(final_TBF_AAC_df)])
+# Create the heatmap
+pdf("./results/TBF_AAC_heatmap.pdf", width = 15, height = 5)
+
+Heatmap(t(final_TBF_AAC_df),
+        name = "AAC",
+        col = col_fun,
+        cluster_rows = FALSE,
+        cluster_columns = T,show_column_dend = F,
+        show_row_names = TRUE,
+        show_column_names = TRUE,
+        top_annotation = col_ha,
+        # Titles for axes
+        column_title = "Cell Lines",
+        #  row_title = "Fluva Concentration",
+        heatmap_legend_param = list(
+          title = "AAC",
+          at = c(0, 1),
+          labels = c("Insensitive", "Sensitive")
+        )
+)
+
+dev.off()
