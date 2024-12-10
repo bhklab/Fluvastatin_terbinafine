@@ -1,4 +1,4 @@
-# Wail_ComboAnalysis
+# Fluvastatin_terbinafine Combo Analysis
  
 ## Introduction
 This is a project to analyze combo data in this manuscript:
