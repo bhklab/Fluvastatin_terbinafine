@@ -664,13 +664,88 @@ for (sample in samples_test) {
 dev.off()
 
 
+######################################################
+######################################################
+######################################################
+
+# We'll assume 'listOfCombos' is already defined and populated as before.
+# This code computes TBF AAC at each Fluva concentration, given that:
+# Rows = Fluva concentrations
+# Columns = TBF concentrations
+
+library(abind)  # If not already loaded
+
+TBF_AAC_eachFluva <- lapply(names(listOfCombos), function(combo) {
+  
+  # Extract full dose-response matrices for each sample in the combo
+  # Each matrix: rows = Fluva concentrations, columns = TBF concentrations
+  allSamples_list <- lapply(names(listOfCombos[[combo]]$Bliss), function(sample) {
+    listOfCombos[[combo]]$Bliss[[sample]]$dose.response.mats[[1]]
+  })
+  
+  # Combine them into an array: [Fluva_conc x TBF_conc x samples]
+  allSamples_array <- abind(allSamples_list, along=3)
+  
+  # Get sample names and identify unique cell lines (base names)
+  sampleNames <- names(listOfCombos[[combo]]$Bliss)
+  uniq_samples <- unique(sub(" .*","", sampleNames))
+  
+  # Median across replicates for each unique cell line
+  monoResults_final_list <- lapply(uniq_samples, function(x) {
+    ibx <- grep(paste0("^", x, "( |$)"), sampleNames)  # indices of replicates for this cell line
+    # Median across the 3rd dimension (replicates)
+    apply(allSamples_array[,,ibx, drop=FALSE], c(1, 2), median)
+  })
+  
+  # Fix cell line names
+  cl_fixed <- fixCellLinesNames(uniq_samples,"data/CL_data/cell_annotation_all.csv")
+  names(monoResults_final_list) <- cl_fixed
+  
+  # Extract concentration values
+  # Now: Rows = Fluva concentrations, Columns = TBF concentrations
+  Fluva_conc <- as.numeric(rownames(monoResults_final_list[[1]]))
+  TBF_conc <- as.numeric(colnames(monoResults_final_list[[1]]))
+  
+  # We want a data frame: rows = cell lines, columns = Fluva concentration scenarios
+  # For each Fluva concentration, we compute TBF AAC.
+  # So we'll have one AAC value per Fluva concentration.
+  TBF_AAC_df <- matrix(NA, nrow = length(monoResults_final_list), ncol = length(Fluva_conc),
+                       dimnames = list(cl_fixed, paste0("Fluva_", Fluva_conc, "_AAC")))
+  
+  # Compute TBF AAC for each cell line at each Fluva concentration
+  for (i in seq_along(monoResults_final_list)) {
+    mat <- monoResults_final_list[[i]] 
+    # 'mat' is viability matrix: rows (Fluva), columns (TBF).
+    # Viability assumed to be in percent already. If not, convert it.
+    # mat <- mat * 100  # Uncomment if needed
+    
+    for (j in seq_along(Fluva_conc)) {
+      # For the j-th Fluva concentration (fixed row), we extract the TBF dose-response from that row
+      viability_tbf <- mat[j, ]  # a vector of viability across TBF doses at a fixed Fluva concentration
+      
+      # Compute AAC for TBF dose-response at this Fluva concentration
+      aac <- computeAUC(concentration = TBF_conc,
+                        viability = viability_tbf,
+                        viability_as_pct = TRUE)/100
+      TBF_AAC_df[i, j] <- aac
+    }
+  }
+  
+  # Return the data frame for this combo
+  TBF_AAC_df
+})
+
+names(TBF_AAC_eachFluva) <- names(listOfCombos)
+
+# If you want one combined data frame (assuming all combos have the same Fluva concentrations):
+final_TBF_AAC_df <- do.call(rbind, TBF_AAC_eachFluva)
 
 ##############################################
 ##############################################
 
 # Ensure all have the same set of cell lines
 common_cells <- intersect(rownames(final_TBF_AAC_df), intersect(rownames(subtypes_final), names(Fluva)))
-final_TBF_AAC_df <- final_TBF_AAC_df[common_cells, , drop=FALSE]
+final_TBF_AAC_df_tmp <- final_TBF_AAC_df[common_cells, , drop=FALSE]
 subtypes_subset <- subtypes_final[common_cells, ]
 FluvaMono_sub <- Fluva[common_cells]
 
@@ -698,14 +773,14 @@ col_ha <- HeatmapAnnotation(
 # Typically, AAC ranges between 0 and 1, so we can map:
 col_fun <- colorRamp2(c(0, 1), c("blue", "white"))
 
-final_TBF_AAC_df = final_TBF_AAC_df[,rev(colnames(final_TBF_AAC_df))]
+final_TBF_AAC_df_tmp = final_TBF_AAC_df_tmp[,rev(colnames(final_TBF_AAC_df_tmp))]
 
-colnames(final_TBF_AAC_df) <- c("TBF + FLUVA (25uM)","TBF + FLUVA (6.25uM)","TBF + FLUVA (1.56uM)","TBF + FLUVA (0.39uM)","TBF Mono")
-final_TBF_AAC_df <- cbind.data.frame(final_TBF_AAC_df,"FLUVA Mono"=Fluva[rownames(final_TBF_AAC_df)])
+colnames(final_TBF_AAC_df_tmp) <- c("TBF + FLUVA (25uM)","TBF + FLUVA (6.25uM)","TBF + FLUVA (1.56uM)","TBF + FLUVA (0.39uM)","TBF Mono")
+final_TBF_AAC_df_tmp <- cbind.data.frame(final_TBF_AAC_df_tmp,"FLUVA Mono"=Fluva[rownames(final_TBF_AAC_df_tmp)])
 # Create the heatmap
 pdf("./results/TBF_AAC_heatmap.pdf", width = 15, height = 5)
 
-Heatmap(t(final_TBF_AAC_df),
+Heatmap(t(final_TBF_AAC_df_tmp),
         name = "AAC",
         col = col_fun,
         cluster_rows = FALSE,
