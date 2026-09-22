@@ -17,7 +17,7 @@ cell_annot <- cell_annot[order(cell_annot)]
 cellMatch <- data.frame("annotated"=cell_annot, "unannotated"=cell_unannot)
 
 
-badchars <- "[\xb5]|[]|[ ,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
+badchars <- "[]|[ ,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
 
 
 closeMatches <- lapply(cellMatch[,"annotated"], function(x){

@@ -24,12 +24,12 @@ library(ggrepel)
 
 # Set the working directory to the "FluvaTBF_repo-main" folder.
 # Adjust the path below as needed for your local environment.
-setwd("Fluvastatin_terbinafine/combo_analysis/")
+# setwd("Fluvastatin_terbinafine/combo_analysis/")
 
 # Set whether you want to recalculate the synergy values from raw data.
 # If TRUE, synergy values are computed from scratch using "calculateSynergy_combo.R".
 # If FALSE, precomputed data is loaded from "data/SynergyStats_Fluva_TBF.RData".
-PerformSynergyCalcFromRaw = TRUE
+PerformSynergyCalcFromRaw = FALSE
 
 ########################################
 ### Calculating/Loading Synergy Data ###
@@ -40,11 +40,11 @@ if(PerformSynergyCalcFromRaw){
   source("R/calculateSynergy_combo.R")
 }else{
   # Load precomputed synergy statistics
-  load("data/SynergyStats_Fluva_TBF.RData",verbose = TRUE)
+  load("./data/SynergyStats_Fluva_TBF.RData",verbose = TRUE)
 }
 
 # Source script to standardize cell line names across experiments
-source("R/fixCellLinesNames.R")
+source("./R/fixCellLinesNames.R")
 
 ############################################################
 ### Compute Fluvastatin Monotherapy Effects from Combo Data #
@@ -72,7 +72,7 @@ listOfCombos_MonoFluva <- lapply(names(listOfCombos), function(combo){
   
   rownames(monoResults_final) <- uniq_samples
   # Fix cell line names
-  rownames(monoResults_final) <- fixCellLinesNames(rownames(monoResults_final),"data/CL_data/cell_annotation_all.csv")
+  rownames(monoResults_final) <- fixCellLinesNames(rownames(monoResults_final),"./data/CL_data/cell_annotation_all.csv")
   
   # Compute IC50 and AAC from the concentration-response data
   fluvaMono <- lapply(1:dim(monoResults_final)[1],function(x){
@@ -297,6 +297,9 @@ BlissMat_summarized_all_final <- melt(BlissMat_summarized_all_final, id=c("cellI
 colnames(BlissMat_summarized_all_final) <- c("cellID", "SCMOD2", "DrugCombo", "Synergy")
 BlissMat_summarized_all_final$SCMOD2 <- as.factor(BlissMat_summarized_all_final$SCMOD2)
 
+
+# print(BlissMat_summarized_all_final)
+# stop()
 my_comparisons = list( c("Basal", "LumB"), c("LumB", "HER2"), c("Basal", "HER2") )
 Subtype_col=c("Basal"="#4daf4a","HER2"="#377eb8","LumB"="#984ea3","LumA"="#e78ac3")  
 
@@ -328,7 +331,12 @@ RNAseq <- readRDS("data/CL_data/cell_lines_expression_matrix.rds")
 commonSamples <- intersect(rownames(RNAseq),colnames(BlissMat_summarized))
 gene_mappings <- readRDS("data/CL_data/genes_ids_mappings.rds")
 
+gene_mappings <- gene_mappings %>% dplyr::filter(GeneBioType=='protein_coding')
 # Compute correlation of each gene's expression with synergy scores
+
+
+
+# stop()
 listOfAssociations <- lapply(rownames(BlissMat_summarized), function(y){
   geneAssociations_cor <- apply(RNAseq[commonSamples,], 2, function(x){
     a <- cor.test(x,BlissMat_summarized[y,commonSamples])
@@ -346,14 +354,15 @@ names(listOfAssociations) <- rownames(BlissMat_summarized)
 
 # Add gene symbols to the correlation results
 listOfAssociations_final <- lapply(listOfAssociations, function(x){
-  data.frame(x,"Symbol"=gene_mappings[rownames(x),"Symbol"])
+  data.frame(x,
+  "Symbol"=gene_mappings[rownames(x),"Symbol"],
+  "EntrezGeneId" = gene_mappings[rownames(x),"EntrezGeneId"])
 })
-
 # Plot correlation results for one combination (FLUVA_TBF)
 df <- listOfAssociations_final[[1]]
 df$significant <- df$fdr < 0.05
 df$significant[is.na(df$significant)] <- FALSE
-
+write.csv(df,"./results/CCL_Bliss_Correlation.csv")
 top_genes <- df[order(df$pval), ][1:20, ]
 
 # Scatter plot of gene correlation vs -log10 p-value, labeling top genes
@@ -431,6 +440,8 @@ df_top <- df[order(df$pval), ][1:top_n, ]
 df_top$Name <- factor(df_top$Name, levels = rev(df_top$Name))
 colnames(df_top) <- c("Name","Count", "Stat", "Genes (up)", "Genes (down)","pval", "FDR")
 df_top = df_top[order(df_top$Stat),]
+# print(df_top)
+df_top <- df_top[complete.cases(df_top),]
 
 pdf("./results/Fig4_C.pdf",height = 15,width = 8)
 ggplot(df_top, aes(x = Stat, y = reorder(Name, Stat))) +

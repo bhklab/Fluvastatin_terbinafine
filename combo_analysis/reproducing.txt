@@ -1,0 +1,14 @@
+In order to add the additional reference model run 
+
+'computeSynergies.R' 
+'pdo_synergy.R'
+and
+'recompute_subtypes.R'
+
+
+to generate all the original plots from the paper run
+
+'combo_analysis.R'
+
+'update_analysis.R'
+
